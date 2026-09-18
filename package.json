@@ -1,0 +1,22 @@
+{
+  "name": "auron",
+  "version": "1.0.0",
+  "description": "Auron economy and security Discord bot with Neon PostgreSQL",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.16.0",
+    "discord.js": "^14.16.0",
+    "dotenv": "^16.4.5",
+    "prisma": "^5.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.16"
+  }
+}
