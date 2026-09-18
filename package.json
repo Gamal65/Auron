@@ -1,15 +1,14 @@
 {
-  "name": "auron-v2",
-  "version": "2.0.0",
-  "description": "Auron V2 - advanced economy and security Discord bot with Neon PostgreSQL and Canvas profile cards",
+  "name": "auron-v4",
+  "version": "4.0.0",
+  "description": "Auron V4 - Advanced Arabic economy bot with English management slash commands",
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio",
-    "db:format": "prisma format"
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@prisma/client": "^5.16.0",

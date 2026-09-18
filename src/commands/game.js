@@ -1,35 +1,625 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const { prisma, ensureUser, randomBetween, formatMoney, addTransaction, atomicTransfer } = require('../services/economy');
+const { prisma, ensureUser, randomBetween, formatMoney, addTransaction } = require('../services/economy');
 const { buildProfileCard } = require('../services/canvas');
 const { EMOJI, COLORS, RARITY } = require('../ui/theme');
 
-const ITEMS = [
-  { name: 'قناع الظل', price: 150, type: 'protection', description: 'يزيد فرص الهروب', rarity: 'common' },
-  { name: 'سيف نيون', price: 300, type: 'weapon', description: 'أداة للمغامرات', rarity: 'uncommon' },
+const SHOP_ITEMS = [
+  { name: 'سيف نيون', price: 300, type: 'weapon', description: 'سلاح قوي', rarity: 'rare' },
+  { name: 'درع التحدي', price: 180, type: 'armor', description: 'حماية متوسطة', rarity: 'common' },
   { name: 'خاتم الحظ', price: 700, type: 'luck', description: 'يزيد فرص النجاح', rarity: 'rare' },
-  { name: 'درع أونيكس', price: 1200, type: 'shield', description: 'حماية من السرقة', rarity: 'epic' },
-  { name: 'تاج أورون', price: 3000, type: 'vip', description: 'عنصر أسطوري نادر', rarity: 'legendary' }
+  { name: 'درع أونيكس', price: 1200, type: 'shield', description: 'درع قوى', rarity: 'epic' },
+  { name: 'تاج أورون', price: 3000, type: 'vip', description: 'عنصر أسطوري', rarity: 'legendary' }
 ];
-const userOf = (message, id = message.author.id) => ensureUser(prisma, id, message.guildId, id === message.author.id ? message.author.username : (message.mentions.users.get(id)?.username || 'عضو'), id === message.author.id ? message.author.displayAvatarURL({ extension: 'png', size: 256 }) : null);
-const money = (n) => formatMoney(n);
+
+async function getUser(message, targetUser = null) {
+  const user = targetUser || message.author;
+  return ensureUser(user.id, message.guildId, user.username, user.displayAvatarURL({ extension: 'png', size: 256 }));
+}
 
 async function balance(message) {
-  const user = await userOf(message); const rank = (await prisma.user.count({ where: { wallet: { gt: user.wallet } } })) + 1;
-  const buffer = await buildProfileCard({ username: user.username, wallet: money(user.wallet), bank: money(user.bank), level: user.level, xp: user.xp, avatarUrl: user.avatarUrl, rank });
-  return message.reply({ files: [new AttachmentBuilder(buffer, { name: 'auron-profile.png' })] });
+  const user = await getUser(message);
+  const rank = (await prisma.user.count({ where: { wallet: { gt: user.wallet } } })) + 1;
+
+  const card = await buildProfileCard({
+    username: user.username,
+    wallet: formatMoney(user.wallet),
+    bank: formatMoney(user.bank),
+    level: user.level,
+    xp: user.xp,
+    reputation: user.reputation,
+    avatarUrl: user.avatarUrl,
+    rank
+  });
+
+  return message.reply({ files: [new AttachmentBuilder(card, { name: 'auron-profile.png' })] });
 }
-async function bank(message) { const u = await userOf(message); return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setTitle(`${EMOJI.bank} خزنة أورون`).setDescription(`${EMOJI.wallet} المحفظة: **${money(u.wallet)}**\n${EMOJI.bank} البنك: **${money(u.bank)}**`).setFooter({ text: 'Auron Banking System' })] }); }
-async function daily(message) { const u = await userOf(message); const now = Date.now(); if (u.lastDaily && now - u.lastDaily.getTime() < 86400000) return message.reply(`${EMOJI.warning} المكافأة القادمة بعد **${Math.ceil((86400000 - (now - u.lastDaily.getTime())) / 3600000)} ساعة**.`); const reward = randomBetween(300, 900); const updated = await prisma.user.update({ where: { id: u.id }, data: { wallet: { increment: reward }, lastDaily: new Date() } }); await addTransaction(u.id, 'daily', reward, 'مكافأة يومية'); return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.gold).setTitle(`${EMOJI.daily} صندوق المكافأة اليومية`).setDescription(`حصلت على **${money(reward)}**\nرصيدك الآن **${money(updated.wallet)}**`).setFooter({ text: 'ارجع غدًا للمكافأة الكبرى!' })] }); }
-async function work(message) { const u = await userOf(message); if (u.lastWork && Date.now() - u.lastWork.getTime() < 60000) return message.reply(`${EMOJI.warning} استرح قليلًا، حاول بعد دقيقة.`); const reward = randomBetween(100, 300); await prisma.user.update({ where: { id: u.id }, data: { wallet: { increment: reward }, xp: { increment: reward }, lastWork: new Date() } }); await addTransaction(u.id, 'work', reward, 'أجر العمل'); return message.reply(`${EMOJI.work} أنجزت مهمتك وربحت **${money(reward)}** ${EMOJI.xp}`); }
-async function deposit(message, amount) { const n = Number(amount); const u = await userOf(message); if (!Number.isInteger(n) || n <= 0 || u.wallet < n) return message.reply(`${EMOJI.fail} مبلغ غير صالح أو رصيد المحفظة غير كافٍ.`); await prisma.$transaction([prisma.user.update({ where: { id: u.id }, data: { wallet: { decrement: n }, bank: { increment: n } } }), prisma.transaction.create({ data: { userId: u.id, type: 'deposit', amount: n, reason: 'إيداع' } })]); return message.reply(`${EMOJI.success} أودعت **${money(n)}** بأمان.`); }
-async function withdraw(message, amount) { const n = Number(amount); const u = await userOf(message); if (!Number.isInteger(n) || n <= 0 || u.bank < n) return message.reply(`${EMOJI.fail} مبلغ غير صالح أو رصيد البنك غير كافٍ.`); await prisma.$transaction([prisma.user.update({ where: { id: u.id }, data: { wallet: { increment: n }, bank: { decrement: n } } }), prisma.transaction.create({ data: { userId: u.id, type: 'withdraw', amount: n, reason: 'سحب' } })]); return message.reply(`${EMOJI.success} سحبت **${money(n)}** من البنك.`); }
-async function transfer(message, target, amount) { const n = Number(amount); if (!target || target.id === message.author.id || !Number.isInteger(n) || n <= 0) return message.reply(`${EMOJI.warning} الاستخدام: تحويل @عضو 250`); const from = await userOf(message); const to = await ensureUser(prisma, target.id, message.guildId, target.username, target.displayAvatarURL({ extension: 'png', size: 256 })); try { await atomicTransfer(from.id, to.id, n, `تحويل إلى ${target.username}`); return message.reply(`${EMOJI.transfer} تم تحويل **${money(n)}** إلى **${target.username}**.`); } catch { return message.reply(`${EMOJI.fail} لا تملك رصيدًا كافيًا.`); } }
-async function shop(message) { await Promise.all(ITEMS.map((item) => prisma.shopItem.upsert({ where: { name: item.name }, update: item, create: item }))); const list = ITEMS.map((i) => `${RARITY[i.rarity].emoji} **${i.name}** — ${money(i.price)}\n> ${i.description}`).join('\n\n'); return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.primary).setTitle(`${EMOJI.shop} سوق أورون الأسطوري`).setDescription(list).setFooter({ text: 'للشراء: شراء اسم العنصر' })] }); }
-async function buy(message, itemName) { const u = await userOf(message); const item = await prisma.shopItem.findFirst({ where: { name: { contains: String(itemName || '').trim(), mode: 'insensitive' }, enabled: true } }); if (!item) return message.reply(`${EMOJI.fail} العنصر غير موجود.`); if (u.wallet < item.price) return message.reply(`${EMOJI.lock} تحتاج إلى ${money(item.price - u.wallet)} إضافية.`); await prisma.$transaction(async (tx) => { await tx.user.update({ where: { id: u.id }, data: { wallet: { decrement: item.price } } }); const old = await tx.inventory.findFirst({ where: { userId: u.id, itemName: item.name } }); if (old) await tx.inventory.update({ where: { id: old.id }, data: { quantity: { increment: 1 } } }); else await tx.inventory.create({ data: { userId: u.id, itemName: item.name, quantity: 1 } }); await tx.transaction.create({ data: { userId: u.id, type: 'purchase', amount: item.price, reason: `شراء ${item.name}` } }); }); return message.reply(`${EMOJI.success} تم اقتناء **${item.name}** ${RARITY[item.rarity]?.emoji || ''}.`); }
-async function inventory(message) { const u = await userOf(message); const rows = await prisma.inventory.findMany({ where: { userId: u.id }, orderBy: { itemName: 'asc' } }); return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setTitle(`${EMOJI.item} حقيبتك`).setDescription(rows.length ? rows.map((r) => `• **${r.itemName}** × ${r.quantity}`).join('\n') : 'حقيبتك فارغة حاليًا.').setFooter({ text: 'اجمع العناصر النادرة لتصبح أسطورة!' })] }); }
-async function rob(message, target) { const a = await userOf(message); if (!target || target.id === message.author.id) return message.reply(`${EMOJI.warning} الاستخدام: سرقة @عضو`); if (a.lastRob && Date.now() - a.lastRob.getTime() < 600000) return message.reply(`${EMOJI.warning} مهلة السرقة لم تنتهِ بعد.`); const v = await ensureUser(prisma, target.id, message.guildId, target.username); if (v.wallet < 150) return message.reply(`${EMOJI.fail} هدفك لا يحمل ما يكفي.`); const win = randomBetween(1, 100) <= 55; const amount = Math.min(randomBetween(60, 600), v.wallet); if (win) { await prisma.$transaction([prisma.user.update({ where: { id: a.id }, data: { wallet: { increment: amount }, lastRob: new Date() } }), prisma.user.update({ where: { id: v.id }, data: { wallet: { decrement: amount } } }), prisma.robberyLog.create({ data: { robberId: a.id, victimId: v.id, amount, success: true } })]); return message.reply(`${EMOJI.robbery} ${EMOJI.success} تمت العملية! غنيمتك **${money(amount)}**.`); } const fine = Math.min(randomBetween(30, 180), a.wallet); await prisma.user.update({ where: { id: a.id }, data: { wallet: { decrement: fine }, lastRob: new Date() } }); return message.reply(`${EMOJI.robbery} ${EMOJI.fail} انكشف أمرك وغرامتك **${money(fine)}**.`); }
-async function crime(message) { const u = await userOf(message); const success = randomBetween(1, 100) <= 60; const amount = randomBetween(80, 350); if (success) { await prisma.user.update({ where: { id: u.id }, data: { wallet: { increment: amount } } }); return message.reply(`${EMOJI.crime} ${EMOJI.success} مهمة ناجحة: **${money(amount)}**.`); } const fine = Math.min(randomBetween(30, 150), u.wallet); await prisma.user.update({ where: { id: u.id }, data: { wallet: { decrement: fine }, jailUntil: new Date(Date.now() + 300000) } }); return message.reply(`${EMOJI.crime} ${EMOJI.fail} تم القبض عليك! غرامة **${money(fine)}** وسجن 5 دقائق ${EMOJI.jail}.`); }
-async function leaderboard(message) { const users = await prisma.user.findMany({ orderBy: [{ wallet: 'desc' }, { bank: 'desc' }], take: 10 }); return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.gold).setTitle(`${EMOJI.crown} عرش الأثرياء`).setDescription(users.map((u, i) => `**${i + 1}.** ${u.username} — ${money(u.wallet + u.bank)}`).join('\n') || 'لا يوجد لاعبون بعد.')] }); }
-async function company(message, value) { const u = await userOf(message); if (!value) return message.reply(`${EMOJI.company} الاستخدام: شركة إنشاء اسم_الشركة`); if (value.startsWith('إنشاء ')) { const name = value.slice(6).trim(); if (!name) return message.reply(`${EMOJI.warning} اكتب اسم الشركة.`); const exists = await prisma.company.findUnique({ where: { name } }); if (exists) return message.reply(`${EMOJI.fail} الاسم محجوز.`); const c = await prisma.company.create({ data: { name, ownerId: u.id } }); await prisma.companyMember.create({ data: { companyId: c.id, userId: u.id, role: 'owner' } }); return message.reply(`${EMOJI.company} ${EMOJI.success} تأسست شركة **${name}**.`); } const c = await prisma.company.findFirst({ where: { OR: [{ ownerId: u.id }, { members: { some: { userId: u.id } } }] }, include: { members: true } }); return message.reply(c ? `${EMOJI.company} **${c.name}**\n👥 الموظفون: ${c.members.length}\n💼 الخزنة: ${money(c.balance)}` : `${EMOJI.fail} أنت لست في شركة.`); }
-async function help(message) { return message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.primary).setTitle(`${EMOJI.help} دليل أورون`).setDescription('**💰 الاقتصاد:** حساب، بنك، يومية، عمل، إيداع، سحب، تحويل\n**🛍️ العناصر:** متجر، شراء، مخزون\n**🎭 المغامرة:** سرقة، جريمة، قمار\n**🏢 المجتمع:** شركة، قائمة\n\nكل الأوامر تعمل بدون بادئة.') ] }); }
-module.exports = { balance, bank, daily, work, deposit, withdraw, transfer, shop, buy, inventory, rob, crime, leaderboard, company, help };
+
+async function bank(message) {
+  const user = await getUser(message);
+
+  return message.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(COLORS.info)
+        .setTitle(`${EMOJI.bank} بنك أورون`)
+        .setDescription(`💰 المحفظة: **${formatMoney(user.wallet)}**\n🏦 البنك: **${formatMoney(user.bank)}**`)
+    ]
+  });
+}
+
+async function daily(message) {
+  const user = await getUser(message);
+  const now = Date.now();
+
+  if (user.lastDaily && now - new Date(user.lastDaily).getTime() < 86400000) {
+    const rem = Math.ceil((86400000 - (now - new Date(user.lastDaily).getTime())) / (60 * 60 * 1000));
+    return message.reply(`${EMOJI.warning} يمكنك استلام المكافأة بعد **${rem} ساعة**.`);
+  }
+
+  const reward = randomBetween(300, 900);
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      wallet: { increment: reward },
+      lastDaily: new Date()
+    }
+  });
+
+  await addTransaction(user.id, 'daily', reward, 'مكافأة يومية');
+
+  return message.reply(`${EMOJI.daily} استلمت **${formatMoney(reward)}**، رصيدك الآن **${formatMoney(updated.wallet)}**.`);
+}
+
+async function weekly(message) {
+  const user = await getUser(message);
+  const now = Date.now();
+
+  if (user.lastWeekly && now - new Date(user.lastWeekly).getTime() < 7 * 86400000) {
+    const rem = Math.ceil((7 * 86400000 - (now - new Date(user.lastWeekly).getTime())) / (60 * 60 * 1000));
+    return message.reply(`${EMOJI.warning} يمكنك استلام الأسبوعية بعد **${rem} ساعة**.`);
+  }
+
+  const reward = randomBetween(1000, 2500);
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      wallet: { increment: reward },
+      lastWeekly: new Date()
+    }
+  });
+
+  await addTransaction(user.id, 'weekly', reward, 'مكافأة أسبوعية');
+
+  return message.reply(`${EMOJI.star} حصلت على **${formatMoney(reward)}** كأسبوعية.`);
+}
+
+async function work(message) {
+  const user = await getUser(message);
+
+  if (user.lastWork && Date.now() - new Date(user.lastWork).getTime() < 60000) {
+    return message.reply(`${EMOJI.warning} انتظر دقيقة قبل العمل مرة أخرى.`);
+  }
+
+  const reward = randomBetween(120, 320);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      wallet: { increment: reward },
+      xp: { increment: reward },
+      lastWork: new Date()
+    }
+  });
+
+  await addTransaction(user.id, 'work', reward, 'أجر العمل');
+
+  return message.reply(`${EMOJI.work} عملت بنجاح وحققت **${formatMoney(reward)}**.`);
+}
+
+async function deposit(message, amountText) {
+  const user = await getUser(message);
+  const amount = Number(amountText);
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return message.reply(`${EMOJI.fail} استخدم: إيداع 250`);
+  }
+
+  if (user.wallet < amount) {
+    return message.reply(`${EMOJI.fail} لا تملك هذا المبلغ في المحفظة.`);
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        wallet: { decrement: amount },
+        bank: { increment: amount }
+      }
+    }),
+    prisma.transaction.create({
+      data: { userId: user.id, type: 'deposit', amount, reason: 'إيداع إلى البنك' }
+    })
+  ]);
+
+  return message.reply(`${EMOJI.success} تم إيداع **${formatMoney(amount)}** إلى البنك.`);
+}
+
+async function withdraw(message, amountText) {
+  const user = await getUser(message);
+  const amount = Number(amountText);
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return message.reply(`${EMOJI.fail} استخدم: سحب 250`);
+  }
+
+  if (user.bank < amount) {
+    return message.reply(`${EMOJI.fail} لا تملك هذا المبلغ في البنك.`);
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        wallet: { increment: amount },
+        bank: { decrement: amount }
+      }
+    }),
+    prisma.transaction.create({
+      data: { userId: user.id, type: 'withdraw', amount, reason: 'سحب من البنك' }
+    })
+  ]);
+
+  return message.reply(`${EMOJI.success} تم سحب **${formatMoney(amount)}** من البنك.`);
+}
+
+async function transfer(message, targetUser, amountText) {
+  const user = await getUser(message);
+  const amount = Number(amountText);
+
+  if (!targetUser) {
+    return message.reply(`${EMOJI.warning} استخدم: تحويل @عضو 250`);
+  }
+
+  if (targetUser.id === message.author.id) {
+    return message.reply(`${EMOJI.fail} لا يمكنك تحويل المال لنفسك.`);
+  }
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return message.reply(`${EMOJI.fail} المبلغ غير صحيح.`);
+  }
+
+  if (user.wallet < amount) {
+    return message.reply(`${EMOJI.fail} لا تملك ما يكفي لتحويل هذا المبلغ.`);
+  }
+
+  const target = await getUser(message, targetUser);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { wallet: { decrement: amount } }
+    }),
+    prisma.user.update({
+      where: { id: target.id },
+      data: { wallet: { increment: amount } }
+    }),
+    prisma.transaction.create({
+      data: { userId: user.id, type: 'transfer_out', amount, reason: `تحويل إلى ${targetUser.username}` }
+    }),
+    prisma.transaction.create({
+      data: { userId: target.id, type: 'transfer_in', amount, reason: `استلام من ${message.author.username}` }
+    })
+  ]);
+
+  return message.reply(`${EMOJI.transfer} تم تحويل **${formatMoney(amount)}** إلى **${targetUser.username}**.`);
+}
+
+async function transactions(message) {
+  const user = await getUser(message);
+
+  const rows = await prisma.transaction.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: 'desc' },
+    take: 10
+  });
+
+  const text = rows.length
+    ? rows.map((row, index) => `**${index + 1}.** ${row.type} | ${formatMoney(row.amount)} | ${row.reason}`).join('\n')
+    : 'لا توجد معاملات حتى الآن.';
+
+  return message.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle(`${EMOJI.money} سجل المعاملات`)
+        .setDescription(text)
+    ]
+  });
+}
+
+async function shop(message) {
+  await Promise.all(SHOP_ITEMS.map((item) =>
+    prisma.shopItem.upsert({
+      where: { name: item.name },
+      update: item,
+      create: item
+    })
+  ));
+
+  const list = SHOP_ITEMS.map((item) =>
+    `${RARITY[item.rarity].emoji} **${item.name}** — ${formatMoney(item.price)}\n> ${item.description}`
+  ).join('\n\n');
+
+  return message.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle(`${EMOJI.shop} متجر أورون`)
+        .setDescription(list)
+    ]
+  });
+}
+
+async function buy(message, itemName) {
+  const user = await getUser(message);
+  const query = String(itemName || '').trim();
+
+  if (!query) {
+    return message.reply(`${EMOJI.fail} استخدم: شراء سيف نيون`);
+  }
+
+  const item = await prisma.shopItem.findFirst({
+    where: { name: { contains: query, mode: 'insensitive' } }
+  });
+
+  if (!item) {
+    return message.reply(`${EMOJI.fail} العنصر غير موجود.`);
+  }
+
+  if (user.wallet < item.price) {
+    return message.reply(`${EMOJI.fail} لا تملك مال كافي لشراء هذا العنصر.`);
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { wallet: { decrement: item.price } }
+    }),
+    prisma.inventory.upsert({
+      where: {
+        userId_itemName: {
+          userId: user.id,
+          itemName: item.name
+        }
+      },
+      update: { quantity: { increment: 1 } },
+      create: {
+        userId: user.id,
+        itemName: item.name,
+        quantity: 1
+      }
+    }),
+    prisma.transaction.create({
+      data: { userId: user.id, type: 'purchase', amount: item.price, reason: `شراء ${item.name}` }
+    })
+  ]);
+
+  return message.reply(`${EMOJI.success} تم شراء **${item.name}** بنجاح.`);
+}
+
+async function inventory(message) {
+  const user = await getUser(message);
+  const items = await prisma.inventory.findMany({
+    where: { userId: user.id },
+    orderBy: { itemName: 'asc' }
+  });
+
+  const text = items.length
+    ? items.map((item) => `• **${item.itemName}** × ${item.quantity}`).join('\n')
+    : 'حقيبتك فارغة الآن.';
+
+  return message.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(COLORS.info)
+        .setTitle(`${EMOJI.item} مخزونك`)
+        .setDescription(text)
+    ]
+  });
+}
+
+async function useItem(message, itemName) {
+  const user = await getUser(message);
+  const query = String(itemName || '').trim();
+
+  if (!query) {
+    return message.reply(`${EMOJI.warning} استخدم: استخدم سيف نيون`);
+  }
+
+  const item = await prisma.inventory.findFirst({
+    where: { userId: user.id, itemName: { contains: query, mode: 'insensitive' } }
+  });
+
+  if (!item) {
+    return message.reply(`${EMOJI.fail} لا تملك هذا العنصر.`);
+  }
+
+  await prisma.inventory.delete({ where: { id: item.id } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { reputation: { increment: 5 } }
+  });
+
+  return message.reply(`${EMOJI.success} تم استخدام **${item.itemName}**، وارتفعت سمعتك بـ 5.`);
+}
+
+async function rob(message, targetUser) {
+  const attacker = await getUser(message);
+  const target = targetUser;
+
+  if (!target) {
+    return message.reply(`${EMOJI.warning} استخدم: سرقة @عضو`);
+  }
+
+  if (target.id === message.author.id) {
+    return message.reply(`${EMOJI.fail} لا يمكنك سرقة نفسك.`);
+  }
+
+  if (attacker.jailUntil && new Date(attacker.jailUntil) > new Date()) {
+    return message.reply(`${EMOJI.jail} أنت مسجون الآن، لا يمكنك السرقة.`);
+  }
+
+  const victim = await getUser(message, target);
+
+  if (victim.wallet < 120) {
+    return message.reply(`${EMOJI.fail} هذا اللاعب لا يملك ما يكفي.`);
+  }
+
+  const now = Date.now();
+  if (attacker.lastRob && now - new Date(attacker.lastRob).getTime() < 600000) {
+    return message.reply(`${EMOJI.warning} يمكنك سرقة مستخدم آخر بعد 10 دقائق.`);
+  }
+
+  const success = randomBetween(1, 100) <= 55;
+  const amount = randomBetween(80, 500);
+
+  if (success) {
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: attacker.id },
+        data: { wallet: { increment: amount }, lastRob: new Date() }
+      }),
+      prisma.user.update({
+        where: { id: victim.id },
+        data: { wallet: { decrement: amount } }
+      }),
+      prisma.robberyLog.create({
+        data: {
+          victimId: victim.id,
+          robberId: attacker.id,
+          amount,
+          success: true
+        }
+      })
+    ]);
+
+    return message.reply(`${EMOJI.robbery} ${EMOJI.success} نجحت السرقة! حصلت على **${formatMoney(amount)}**.`);
+  }
+
+  const fine = randomBetween(30, 180);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: attacker.id },
+      data: { wallet: { decrement: fine }, lastRob: new Date() }
+    }),
+    prisma.robberyLog.create({
+      data: {
+        victimId: victim.id,
+        robberId: attacker.id,
+        amount: fine,
+        success: false
+      }
+    })
+  ]);
+
+  return message.reply(`${EMOJI.robbery} ${EMOJI.fail} فشلت السرقة، وتم خصم **${formatMoney(fine)}**.`);
+}
+
+async function crime(message) {
+  const user = await getUser(message);
+  const success = randomBetween(1, 100) <= 60;
+  const gain = randomBetween(100, 350);
+
+  if (success) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { wallet: { increment: gain } }
+    });
+    await addTransaction(user.id, 'crime_success', gain, 'جريمة ناجحة');
+
+    return message.reply(`${EMOJI.crime} ${EMOJI.success} جريمة ناجحة! ربحت **${formatMoney(gain)}**.`);
+  }
+
+  const fine = randomBetween(30, 150);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { wallet: { decrement: fine } }
+  });
+  await addTransaction(user.id, 'crime_fail', fine, 'غرامة جريمة');
+
+  return message.reply(`${EMOJI.crime} ${EMOJI.fail} فشلت الجريمة، وقمت بدفع غرامة **${formatMoney(fine)}**.`);
+}
+
+async function gamble(message, amountText) {
+  const user = await getUser(message);
+  const amount = Number(amountText);
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return message.reply(`${EMOJI.warning} استخدم: قمار 100`);
+  }
+
+  if (user.wallet < amount) {
+    return message.reply(`${EMOJI.fail} لا تملك هذا المبلغ في المحفظة.`);
+  }
+
+  const win = randomBetween(1, 100) <= 50;
+  if (win) {
+    const reward = amount * 2;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { wallet: { increment: reward } }
+    });
+    await addTransaction(user.id, 'gamble_win', reward, 'قمار فائز');
+
+    return message.reply(`${EMOJI.success} 🎲 فزت! ربحت **${formatMoney(reward)}**.`);
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { wallet: { decrement: amount } }
+  });
+  await addTransaction(user.id, 'gamble_loss', amount, 'خسارة قمار');
+
+  return message.reply(`${EMOJI.fail} 🎲 خسرت **${formatMoney(amount)}**.`);
+}
+
+async function slotMachine(message, amountText) {
+  const user = await getUser(message);
+  const amount = Number(amountText);
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return message.reply(`${EMOJI.warning} استخدم: سلوت 100`);
+  }
+
+  if (user.wallet < amount) {
+    return message.reply(`${EMOJI.fail} لا تملك هذا المبلغ في المحفظة.`);
+  }
+
+  const result = [randomBetween(1, 10), randomBetween(1, 10), randomBetween(1, 10)];
+  const win = result.every((v) => v >= 8);
+
+  if (win) {
+    const reward = amount * 3;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { wallet: { increment: reward } }
+    });
+    await addTransaction(user.id, 'slots_win', reward, 'فوز في السلوت');
+    return message.reply(`${EMOJI.slot} فزت! الربح **${formatMoney(reward)}**.`);
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { wallet: { decrement: amount } }
+  });
+  await addTransaction(user.id, 'slots_loss', amount, 'خسارة في السلوت');
+
+  return message.reply(`${EMOJI.fail} خسرت **${formatMoney(amount)}**.`);
+}
+
+async function leaderboard(message) {
+  const users = await prisma.user.findMany({
+    orderBy: [{ wallet: 'desc' }, { bank: 'desc' }],
+    take: 10
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.gold)
+    .setTitle(`${EMOJI.leaderboard} قائمة المتصدرين`)
+    .setDescription(
+      users.length
+        ? users.map((u, i) => `**${i + 1}.** ${u.username} — ${formatMoney(u.wallet + u.bank)}`).join('\n')
+        : 'لا توجد بيانات بعد.'
+    );
+
+  return message.reply({ embeds: [embed] });
+}
+
+async function company(message, actionText) {
+  const user = await getUser(message);
+
+  if (!actionText || !actionText.trim()) {
+    return message.reply(`${EMOJI.company} استخدم: شركة إنشاء اسم_الشركة`);
+  }
+
+  if (actionText.toLowerCase().startsWith('إنشاء')) {
+    const name = actionText.replace(/^إنشاء\s+/i, '').trim();
+
+    if (!name) {
+      return message.reply(`${EMOJI.warning} اكتب اسم الشركة.`);
+    }
+
+    const exists = await prisma.company.findFirst({ where: { name } });
+
+    if (exists) {
+      return message.reply(`${EMOJI.fail} اسم الشركة موجود بالفعل.`);
+    }
+
+    const created = await prisma.company.create({ data: { name, ownerId: user.id } });
+    await prisma.companyMember.create({
+      data: { companyId: created.id, userId: user.id, role: 'owner' }
+    });
+
+    return message.reply(`${EMOJI.company} ${EMOJI.success} تم إنشاء الشركة **${name}**.`);
+  }
+
+  const company = await prisma.company.findFirst({
+    where: {
+      OR: [
+        { ownerId: user.id },
+        { members: { some: { userId: user.id } } }
+      ]
+    },
+    include: { members: true }
+  });
+
+  if (!company) {
+    return message.reply(`${EMOJI.fail} أنت لا تمتلك شركة الآن.`);
+  }
+
+  return message.reply(
+    `${EMOJI.company} **${company.name}**\n` +
+    `👥 الموظفين: ${company.members.length}\n` +
+    `💼 الخزينة: ${formatMoney(company.balance)}`
+  );
+}
+
+async function help(message) {
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setTitle(`${EMOJI.help} دليل أوامر أورون`)
+    .setDescription(
+      '💰 الاقتصاد\n' +
+      '• حساب / رصيد / بنك / إيداع / سحب / تحويل / سجل\n' +
+      '• يومية / أسبوعية / عمل / وظائف\n' +
+      '• سرقة / جريمة / قمار / سلوت\n' +
+      '• متجر / شراء / بيع / مخزون / استخدم\n' +
+      '• شركة / قائمة / متصدرين\n' +
+      '• مساعدة'
+    );
+
+  return message.reply({ embeds: [embed] });
+}
+
+module.exports = {
+  balance,
+  bank,
+  daily,
+  weekly,
+  work,
+  deposit,
+  withdraw,
+  transfer,
+  transactions,
+  shop,
+  buy,
+  inventory,
+  useItem,
+  rob,
+  crime,
+  gamble,
+  slotMachine,
+  leaderboard,
+  company,
+  help
+};
