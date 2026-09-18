@@ -1,117 +1,21 @@
-const { createCanvas, loadImage, registerFont } = require('canvas');
-const fs = require('fs');
-const path = require('path');
+const { createCanvas, loadImage } = require('canvas');
+const { COLORS } = require('../ui/theme');
 
-registerFont(path.join(__dirname, '../assets', 'Cairo-Regular.ttf'), { family: 'Cairo' });
+function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+function text(ctx, value, x, y, size, color = '#fff', weight = 'normal') { ctx.font = `${weight} ${size}px Sans`; ctx.fillStyle = color; ctx.fillText(String(value), x, y); }
 
-function buildProfileCard({ username, wallet, bank, level, xp, avatarUrl, rank }) {
-  const canvas = createCanvas(1000, 600);
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  gradient.addColorStop(0, '#0ea5e9');
-  gradient.addColorStop(0.5, '#7c3aed');
-  gradient.addColorStop(1, '#f97316');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = 'rgba(15,23,42,0.58)';
-  ctx.fillRect(40, 40, 920, 520);
-
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 42px Cairo';
-  ctx.fillText('Auron Profile', 70, 100);
-
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '32px Cairo';
-  ctx.fillText(`@${username}`, 70, 150);
-
-  ctx.fillStyle = '#facc15';
-  ctx.font = '26px Cairo';
-  ctx.fillText(`الرتبة: #${rank || 1}`, 70, 210);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '28px Cairo';
-  ctx.fillText(`المحفظة: ${wallet} 💰`, 70, 280);
-  ctx.fillText(`البنك: ${bank} 🏦`, 70, 330);
-  ctx.fillText(`المستوى: ${level} ⚙️`, 70, 380);
-  ctx.fillText(`الخبرة: ${xp} ✨`, 70, 430);
-
-  const panelX = 650;
-  const panelY = 120;
-  const panelW = 230;
-  const panelH = 260;
-
-  ctx.fillStyle = 'rgba(15, 118, 110, 0.6)';
-  ctx.fillRect(panelX, panelY, panelW, panelH);
-
-  ctx.strokeStyle = '#f8fafc';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(panelX, panelY, panelW, panelH);
-
-  const avatarRadius = 80;
-  const avatarX = panelX + panelW / 2;
-  const avatarY = panelY + 90;
-
-  ctx.beginPath();
-  ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-
-  if (avatarUrl) {
-    const image = new global.Image();
-    image.src = avatarUrl;
-    ctx.drawImage(image, avatarX - avatarRadius, avatarY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
-  } else {
-    ctx.fillStyle = '#38bdf8';
-    ctx.fillRect(avatarX - avatarRadius, avatarY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
-  }
-
-  ctx.restore();
-
-  ctx.beginPath();
-  ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = '#f8fafc';
-  ctx.stroke();
-
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 24px Cairo';
-  ctx.fillText('VIP', panelX + 86, panelY + 220);
-
+async function buildProfileCard({ username, wallet, bank, level, xp, avatarUrl, rank = 1 }) {
+  const canvas = createCanvas(1200, 675); const ctx = canvas.getContext('2d');
+  const bg = ctx.createLinearGradient(0, 0, 1200, 675); bg.addColorStop(0, '#111827'); bg.addColorStop(0.55, '#312e81'); bg.addColorStop(1, '#7c2d12'); ctx.fillStyle = bg; ctx.fillRect(0, 0, 1200, 675);
+  ctx.fillStyle = 'rgba(15,23,42,.78)'; roundRect(ctx, 36, 36, 1128, 603, 28);
+  text(ctx, 'AURON', 80, 105, 28, '#a78bfa', 'bold'); text(ctx, 'ملف اللاعب', 80, 155, 48, '#fff', 'bold');
+  text(ctx, `@${username}`, 80, 202, 27, '#cbd5e1'); text(ctx, `🏆 الترتيب العالمي #${rank}`, 80, 255, 25, '#fbbf24', 'bold');
+  const cards = [['👛 المحفظة', wallet], ['🏦 البنك', bank], ['🏅 المستوى', level], ['✨ الخبرة', xp]];
+  cards.forEach(([label, value], i) => { const x = 80 + (i % 2) * 265; const y = 310 + Math.floor(i / 2) * 115; ctx.fillStyle = 'rgba(255,255,255,.08)'; roundRect(ctx, x, y, 235, 84, 18); text(ctx, label, x + 18, y + 31, 19, '#c4b5fd'); text(ctx, Number(value).toLocaleString('en-US'), x + 18, y + 65, 25, '#fff', 'bold'); });
+  ctx.fillStyle = 'rgba(14,165,233,.18)'; roundRect(ctx, 790, 135, 300, 360, 24);
+  try { if (avatarUrl) { const avatar = await loadImage(avatarUrl); ctx.save(); ctx.beginPath(); ctx.arc(940, 270, 112, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(avatar, 828, 158, 224, 224); ctx.restore(); } } catch (_) { ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.arc(940, 270, 112, 0, Math.PI * 2); ctx.fill(); }
+  text(ctx, '🌟 AURON MEMBER', 842, 420, 22, '#f8fafc', 'bold'); text(ctx, 'اقتصاد • مغامرة • إنجاز', 835, 462, 18, '#bae6fd');
   return canvas.toBuffer('image/png');
 }
 
-function buildShopCard({ name, price, type, description }) {
-  const canvas = createCanvas(700, 260);
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#111827';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  grad.addColorStop(0, '#f59e0b');
-  grad.addColorStop(1, '#ef4444');
-  ctx.fillStyle = grad;
-  ctx.fillRect(20, 20, canvas.width - 40, canvas.height - 40);
-
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 34px Cairo';
-  ctx.fillText(name, 45, 90);
-  ctx.font = '28px Cairo';
-  ctx.fillText(`السعر: ${price} 💰`, 45, 150);
-  ctx.fillText(`النوع: ${type}`, 45, 195);
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = '22px Cairo';
-  ctx.fillText(description, 45, 230);
-
-  return canvas.toBuffer('image/png');
-}
-
-module.exports = {
-  buildProfileCard,
-  buildShopCard
-};
+module.exports = { buildProfileCard };
