@@ -1,65 +1,56 @@
-# Auron
-Integrated Discord Bot System
+# Auron V2
+A premium economy and security Discord bot powered by Neon PostgreSQL with Arabic gameplay and slash admin tools.
 
-A premium economy bot for Discord with:
-- Neon PostgreSQL database integration
-- Gameplay commands without prefix
-- Slash-based admin commands
-- Economy, bank, work, robbery, shop, inventory, companies, leaderboards
-- Arabic-first interfaces with English fallbacks
+## Features
+- Arabic gameplay commands without prefix
+- Slash-only admin commands
+- Neon PostgreSQL with Prisma ORM
+- Economy, bank, work, daily rewards, theft, crime, gambling, market, inventory, companies
+- Canvas profile cards and modern embeds
+- Admin logging, cooldowns and safety checks
 
-## Setup
-1. Create a Neon PostgreSQL database.
-2. Copy `.env.example` to `.env` and fill in the values.
-3. Install dependencies:
+## Install
+1. Copy `.env.example` to `.env`
+2. Fill `DATABASE_URL` and `DISCORD_TOKEN`
+3. Run:
    ```bash
    npm install
-   ```
-4. Push the Prisma schema:
-   ```bash
    npx prisma db push
-   ```
-5. Generate Prisma client:
-   ```bash
    npx prisma generate
-   ```
-6. Start the bot:
-   ```bash
    npm start
    ```
 
-## Example gameplay commands
+## Gameplay Commands
 - حساب
 - رصيد
 - بنك
 - يومية
 - عمل
-- سرقة @user
+- إيداع 100
+- سحب 100
+- تحويل @user 100
+- سجل
 - متجر
 - شراء سيف
 - مخزون
-- شركة إنشاء اسم_الشركة
-- تحويل @user 100
-- إيداع 300
-- سحب 200
-- سجل
-- قائمة
+- سرقة @user
 - جريمة
 - قمار 50
+- قائمة
+- شركة إنشاء اسم_الشركة
 
-## Example admin slash commands
+## Admin Commands
 - /اعطاء
 - /سحب
 - /تعيين
 - /تجميد
 - /اضافة_عنصر
 - /حذف_عنصر
-- /تحديث_متجر
+- /تحديث_السوق
 - /تسجيلات
 - /اعدادات
 
 ## Notes
-- Gameplay commands are prefixless and are triggered directly by message content.
-- Admin commands are Slash Commands only.
-- Database operations use Neon PostgreSQL through Prisma.
-- The robe system includes cooldowns and failure penalties.
+- Gameplay messages are Arabic and require no prefix.
+- Admin actions are slash-only.
+- Canvas profile support is included via the `canvas` package.
