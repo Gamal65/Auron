@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  discordId     String   @unique
+  username      String
+  guildId       String
+  wallet        Int      @default(500)
+  bank          Int      @default(0)
+  level         Int      @default(1)
+  xp            Int      @default(0)
+  lastDaily     DateTime?
+  lastWork      DateTime?
+  lastRob       DateTime?
+  lastCrime     DateTime?
+  jailUntil     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions  Transaction[]
+  inventory     Inventory[]
+  companyMember CompanyMember?
+  companyOwner  Company[]
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  amount      Int
+  reason      String
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Inventory {
+  id          String   @id @default(cuid())
+  userId      String
+  itemName    String
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model ShopItem {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  price       Int
+  type        String
+  description String
+  rarity      String   @default("common")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  ownerId     String
+  balance     Int      @default(0)
+  level       Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  owner       User     @relation(fields: [ownerId], references: [id])
+  members     CompanyMember[]
+}
+
+model CompanyMember {
+  id          String   @id @default(cuid())
+  companyId   String
+  userId      String   @unique
+  role        String   @default("member")
+  joinedAt    DateTime @default(now())
+
+  company     Company  @relation(fields: [companyId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model RobberyLog {
+  id          String   @id @default(cuid())
+  victimId    String
+  robberId    String
+  amount      Int
+  success     Boolean
+  createdAt   DateTime @default(now())
+}
+
+model Cooldown {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  expiresAt   DateTime
+}
+
+model GuildSetting {
+  id          String   @id @default(cuid())
+  guildId     String   @unique
+  currency    String   @default("💰")
+  adminRoleId String?
+  logChannel  String?
+  createdAt   DateTime @default(now())
+}
+
+model AdminLog {
+  id          String   @id @default(cuid())
+  guildId     String
+  adminId     String
+  action      String
+  targetId    String?
+  reason      String?
+  createdAt   DateTime @default(now())
+}
