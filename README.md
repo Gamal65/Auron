@@ -1,56 +1,23 @@
-# Auron V2
-A premium economy and security Discord bot powered by Neon PostgreSQL with Arabic gameplay and slash admin tools.
+# Auron V3 — Neon Economy
 
-## Features
-- Arabic gameplay commands without prefix
-- Slash-only admin commands
-- Neon PostgreSQL with Prisma ORM
-- Economy, bank, work, daily rewards, theft, crime, gambling, market, inventory, companies
-- Canvas profile cards and modern embeds
-- Admin logging, cooldowns and safety checks
+نسخة محسنة بواجهة ورسائل Emoji موحّدة، Canvas profile card، أوامر لعب عربية بدون بادئة، وأوامر إدارة Slash فقط.
 
-## Install
-1. Copy `.env.example` to `.env`
-2. Fill `DATABASE_URL` and `DISCORD_TOKEN`
-3. Run:
-   ```bash
-   npm install
-   npx prisma db push
-   npx prisma generate
-   npm start
-   ```
+## التشغيل
+```bash
+cp .env.example .env
+npm install
+npx prisma db push
+npx prisma generate
+npm start
+```
 
-## Gameplay Commands
-- حساب
-- رصيد
-- بنك
-- يومية
-- عمل
-- إيداع 100
-- سحب 100
-- تحويل @user 100
-- سجل
-- متجر
-- شراء سيف
-- مخزون
-- سرقة @user
-- جريمة
-- قمار 50
-- قائمة
-- شركة إنشاء اسم_الشركة
+## أوامر اللعب
+`حساب` `رصيد` `بنك` `يومية` `عمل` `إيداع 100` `سحب 100` `تحويل @عضو 100` `متجر` `شراء سيف نيون` `مخزون` `سرقة @عضو` `جريمة` `قائمة` `شركة إنشاء اسم` `مساعدة`
 
-## Admin Commands
-- /اعطاء
-- /سحب
-- /تعيين
-- /تجميد
-- /اضافة_عنصر
-- /حذف_عنصر
-- /تحديث_السوق
-- /تسجيلات
-- /اعدادات
+## الإدارة (Slash فقط)
+`/اعطاء` `سحب/` `تجميد/` `اضافة_عنصر/` `تسجيلات/`
 
-## Notes
-- Gameplay messages are Arabic and require no prefix.
-- Admin actions are slash-only.
-- Canvas profile support is included via the `canvas` package.
+## ملاحظات
+- يجب تفعيل **Message Content Intent** من Discord Developer Portal لأن أوامر اللعب بلا بادئة تعتمد على محتوى الرسالة.
+- يجب وضع `DISCORD_TOKEN` و`DATABASE_URL` في `.env`.
+- Canvas يستخدم خط النظام لتجنب انهيار التشغيل عند غياب ملف خط محلي. يمكن إضافة خط عربي إلى `src/assets` لاحقًا.
