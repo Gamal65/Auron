@@ -17,10 +17,13 @@ model User {
   bank        Int      @default(0)
   level       Int      @default(1)
   xp          Int      @default(0)
+  reputation  Int      @default(0)
+  gems        Int      @default(0)
   lastDaily   DateTime?
   lastWork    DateTime?
   lastRob     DateTime?
   lastCrime   DateTime?
+  lastWeekly  DateTime?
   jailUntil   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -50,6 +53,8 @@ model Inventory {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, itemName])
 }
 
 model ShopItem {
@@ -60,6 +65,7 @@ model ShopItem {
   description String
   rarity      String   @default("common")
   enabled     Boolean  @default(true)
+  kind        String   @default("item")
   createdAt   DateTime @default(now())
 }
 
@@ -95,15 +101,6 @@ model RobberyLog {
   createdAt DateTime @default(now())
 }
 
-model GuildSetting {
-  id          String   @id @default(cuid())
-  guildId     String   @unique
-  currency    String   @default("💰")
-  adminRoleId String?
-  logChannel  String?
-  createdAt   DateTime @default(now())
-}
-
 model AdminLog {
   id        String   @id @default(cuid())
   guildId   String
@@ -112,4 +109,13 @@ model AdminLog {
   targetId  String?
   reason    String?
   createdAt DateTime @default(now())
+}
+
+model GuildConfig {
+  id          String   @id @default(cuid())
+  guildId     String   @unique
+  currency    String   @default("💰")
+  adminRoleId String?
+  logChannel  String?
+  createdAt   DateTime @default(now())
 }

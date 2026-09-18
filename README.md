@@ -1,23 +1,74 @@
-# Auron V3 — Neon Economy
+# Auron V4
 
-نسخة محسنة بواجهة ورسائل Emoji موحّدة، Canvas profile card، أوامر لعب عربية بدون بادئة، وأوامر إدارة Slash فقط.
+Auron V4 هو بوت ديسكورد عربي للاقتصاد واللعب واللوجيك المتقدمة، مع أوامر إدارة إنجليزية فقط.
+
+## المميزات
+- أوامر لعب عربية بدون بادئة
+- أوامر إدارة Slash باللغة الإنجليزية
+- وصف كل أمر Slash بالعربي
+- نظام اقتصاد كامل: رصيد، بنك، يومية، أسبوعية، عمل، تحويل
+- متجر + مخزون + عناصر نادرة
+- سرقة + جريمة + قمار + سلوت
+- شركات + قوائم متصدرين
+- Canvas profile cards
+- قاعدة بيانات Neon PostgreSQL مع Prisma
+- سجل إداري
+- ألوان وإيموجيات احترافية
 
 ## التشغيل
 ```bash
-cp .env.example .env
 npm install
 npx prisma db push
 npx prisma generate
 npm start
 ```
 
-## أوامر اللعب
-`حساب` `رصيد` `بنك` `يومية` `عمل` `إيداع 100` `سحب 100` `تحويل @عضو 100` `متجر` `شراء سيف نيون` `مخزون` `سرقة @عضو` `جريمة` `قائمة` `شركة إنشاء اسم` `مساعدة`
+## أوامر المستخدم
+- حساب
+- رصيد
+- بنك
+- يومية
+- أسبوعية
+- عمل
+- إيداع 250
+- سحب 250
+- تحويل @عضو 250
+- سجل
+- متجر
+- شراء سيف نيون
+- مخزون
+- استخدم سيف نيون
+- سرقة @عضو
+- جريمة
+- قمار 100
+- سلوت 100
+- قائمة
+- شركة إنشاء اسم_الشركة
+- مساعدة
 
-## الإدارة (Slash فقط)
-`/اعطاء` `سحب/` `تجميد/` `اضافة_عنصر/` `تسجيلات/`
+## أوامر الإدارة
+- /give
+- /remove
+- /setbalance
+- /jail
+- /unjail
+- /additem
+- /removeitem
+- /updateitem
+- /logs
+- /settings
 
 ## ملاحظات
-- يجب تفعيل **Message Content Intent** من Discord Developer Portal لأن أوامر اللعب بلا بادئة تعتمد على محتوى الرسالة.
-- يجب وضع `DISCORD_TOKEN` و`DATABASE_URL` في `.env`.
-- Canvas يستخدم خط النظام لتجنب انهيار التشغيل عند غياب ملف خط محلي. يمكن إضافة خط عربي إلى `src/assets` لاحقًا.
+- تأكد من تفعيل Message Content Intent في Discord Developer Portal.
+- تأكد من وضع DATABASE_URL و DISCORD_TOKEN في ملف .env.
+- إذا كنت تريد نسخة أكثر احترافية، أستطيع أن أضيف لها:
+  - blackjack
+  - roulette
+  - missions
+  - achievements
+  - prestige
+  - vip system
+  - company upgrades
+  - auction house
+  - daily streak
+  - seasonal shop
